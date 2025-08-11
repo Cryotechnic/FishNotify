@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <Target Name="RenameLatestZip" AfterTargets="PackagePlugin">
-    <Exec Command="if exist &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; rename &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; &quot;$(AssemblyName)-$(Version).zip&quot;" />
+    <Exec Command="rename &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; &quot;$(AssemblyName)-$(Version).zip&quot;" />
   </Target>
 
 </Project>

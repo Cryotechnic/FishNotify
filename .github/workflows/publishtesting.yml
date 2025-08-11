@@ -1,0 +1,56 @@
+name: Build Test Plugin
+
+on:
+  push:
+    branches: [ api13 ]
+  pull_request:
+    branches: [ api13 ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DALAMUD_HOME: C:\tmp\dalamud
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Prepare DALAMUD_HOME directory
+        run: mkdir C:\tmp
+        shell: pwsh
+
+      - name: Download Dalamud Latest
+        run: |
+          curl -L https://goatcorp.github.io/dalamud-distrib/latest.zip -o ${{ env.DALAMUD_HOME }}.zip
+          mkdir $env:DALAMUD_HOME
+          tar -xf ${{ env.DALAMUD_HOME }}.zip -C ${{ env.DALAMUD_HOME }}
+        shell: pwsh
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build FishNotify.csproj --configuration Release
+
+      - name: Package plugin as zip
+        run: |
+          $source = "dist\FishNotify"
+          $zip = "dist\FishNotify-${{ github.ref_name }}_${{ github.sha }}.zip"
+          if (Test-Path $source) {
+            Compress-Archive -Path "$source\*" -DestinationPath $zip -Force
+          } else {
+            Write-Error "Source directory does not exist: $source"
+          }
+        shell: pwsh
+
+      - name: Upload packaged zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: FishNotify-Package
+          path: dist\FishNotify-${{ github.ref_name }}_${{ github.sha }}.zip
