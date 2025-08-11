@@ -1,6 +1,6 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/12.0.2">
+﻿<Project Sdk="Dalamud.NET.Sdk/13.0.0">
   <PropertyGroup>
-    <Version>9.0</Version>
+    <Version>9.1</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <OutputPath>dist</OutputPath>
   </PropertyGroup>
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Windows.Extensions" Version="9.0.3" />
+    <PackageReference Include="System.Windows.Extensions" Version="9.0.8" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <Target Name="RenameLatestZip" AfterTargets="PackagePlugin">
-    <Exec Command="rename &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; &quot;$(AssemblyName)-$(Version).zip&quot;" />
+    <Exec Command="if exist &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; rename &quot;$(OutDir)$(AssemblyName)\latest.zip&quot; &quot;$(AssemblyName)-$(Version).zip&quot;" />
   </Target>
 
 </Project>

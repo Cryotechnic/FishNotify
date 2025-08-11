@@ -3,14 +3,16 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Colors;
 using Dalamud.IoC;
 using Dalamud.Plugin;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Network;
 
 namespace FishNotify;
 
@@ -18,9 +20,9 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
 {
     [PluginService]
     private IDalamudPluginInterface PluginInterface { get; set; } = null!;
-
+    
     [PluginService]
-    private IGameNetwork Network { get; set; } = null!;
+    private IGameInteropProvider GameInteropProvider { get; set; } = null!;
 
     [PluginService]
     private IChatGui Chat { get; set; } = null!;
@@ -33,11 +35,19 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
     private int _expectedOpCode = -1;
     private uint _fishCount;
 
+    private Hook<PacketDispatcher.Delegates.HandleEventPlayPacket>? eventPlayPacketHook;
+
     public FishNotifyPlugin()
     {
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        Network.NetworkMessage += OnNetworkMessage;
+        unsafe
+        {
+            eventPlayPacketHook = GameInteropProvider.HookFromAddress<PacketDispatcher.Delegates.HandleEventPlayPacket>(
+                PacketDispatcher.Addresses.HandleEventPlayPacket.Value, DetourEventPlay);   
+            eventPlayPacketHook!.Enable();
+        }
+        
         PluginInterface.UiBuilder.Draw += OnDrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += OnOpenConfigUi;
 
@@ -48,7 +58,6 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
 
     public void Dispose()
     {
-        Network.NetworkMessage -= OnNetworkMessage;
         PluginInterface.UiBuilder.Draw -= OnDrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfigUi;
     }
@@ -91,6 +100,15 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
         {
             PluginLog.Error(e, "Could not download/extract opcodes: {}", e.Message);
         }
+    }
+
+    private unsafe void DetourEventPlay(ulong gameObjectId, uint eventId, ushort stage, ulong a4, uint* payload,
+        byte payloadSize)
+    {
+        PluginLog.Verbose("DetourEventPlay called with GameObjectId: {0:X}, EventId: {1:X8}, Stage: {2}, PayloadSize: {3}",
+            gameObjectId, eventId, stage, payloadSize);
+        if (_expectedOpCode < 0)
+            return;
     }
 
     private void OnNetworkMessage(IntPtr dataPtr, ushort opCode, uint sourceActorId, uint targetActorId, NetworkMessageDirection direction)
