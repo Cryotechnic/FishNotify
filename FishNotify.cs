@@ -60,6 +60,7 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
     {
         PluginInterface.UiBuilder.Draw -= OnDrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfigUi;
+        eventPlayPacketHook!.Dispose();
     }
 
     private void ExtractOpCode(Task<string> task)
