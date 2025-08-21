@@ -7,6 +7,7 @@ using System;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Network;
+using Dalamud.Game.Command;
 
 namespace FishNotify;
 
@@ -16,10 +17,10 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
     private readonly IGameInteropProvider GameInteropProvider;
     private readonly IChatGui Chat;
     private readonly IPluginLog PluginLog;
+    private readonly ICommandManager CommandManager;
 
     private readonly Configuration _configuration;
     private bool _settingsVisible;
-    private int _expectedOpCode = -1;
     private uint _fishCount;
 
     private Hook<PacketDispatcher.Delegates.HandleEventPlayPacket>? eventPlayPacketHook;
@@ -28,12 +29,14 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
         IDalamudPluginInterface pluginInterface,
         IGameInteropProvider gameInteropProvider,
         IChatGui chat,
-        IPluginLog pluginLog)
+        IPluginLog pluginLog,
+        ICommandManager commandManager)
     {
         PluginInterface = pluginInterface;
         GameInteropProvider = gameInteropProvider;
         Chat = chat;
         PluginLog = pluginLog;
+        CommandManager = commandManager;
 
         _configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
@@ -44,6 +47,11 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
             eventPlayPacketHook!.Enable();
         }
 
+        CommandManager.AddHandler("/fishnotify", new CommandInfo(OnCommand)
+        {
+            HelpMessage = "FishNotify: open/close window or control chat alerts. Usage: /fishnotify [on|off]"
+        });
+
         PluginInterface.UiBuilder.Draw += OnDrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += OnOpenConfigUi;
     }
@@ -53,13 +61,14 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw -= OnDrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfigUi;
         eventPlayPacketHook?.Dispose();
+        CommandManager.RemoveHandler("/fishnotify");
     }
 
     private unsafe void DetourEventPlay(ulong gameObjectId, uint eventId, ushort stage, ulong a4, uint* payload, byte payloadSize)
     {
         try
         {
-            PluginLog.Information(
+            PluginLog.Debug(
                 "DetourEventPlay called with GameObjectId: {0:X}, EventId: {1:X8}, Stage: {2}, PayloadSize: {3}",
                 gameObjectId, eventId, stage, payloadSize);
 
@@ -75,7 +84,7 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
             {
                 var p0 = payload[0];
 
-                // Handle both opcode values and ordinal encodings defensively
+                // The tug strength is encoded in the first parameter of the payload
                 var tug = p0 switch
                 {
                     0x124 or 1 => "light",
@@ -115,6 +124,31 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
         }
     }
 
+    private void OnCommand(string command, string args)
+    {
+        var a = (args ?? string.Empty).Trim().ToLowerInvariant();
+        switch (a)
+        {
+            case "":
+                // Toggle the settings window visibility
+                _settingsVisible = !_settingsVisible;
+                break;
+            case "on":
+                _configuration.ChatAlerts = true;
+                PluginInterface.SavePluginConfig(_configuration);
+                Chat.Print("[FishNotify] Chat alerts enabled.");
+                break;
+            case "off":
+                _configuration.ChatAlerts = false;
+                PluginInterface.SavePluginConfig(_configuration);
+                Chat.Print("[FishNotify] Chat alerts disabled.");
+                break;
+            default:
+                Chat.Print("[FishNotify] Usage: /fishnotify [on|off]");
+                break;
+        }
+    }
+
     private void SendChatAlert(string size)
     {
         if (!_configuration.ChatAlerts)
@@ -149,10 +183,9 @@ public sealed class FishNotifyPlugin : IDalamudPlugin
                 PluginInterface.SavePluginConfig(_configuration);
             }
 
-            if (_expectedOpCode > -1)
-                ImGui.TextColored(ImGuiColors.HealerGreen, $"Status: {(_fishCount == 0 ? "Unknown (not triggered yet)" : $"OK ({_fishCount} fish hooked)")}, opcode = {_expectedOpCode:X}");
-            else
-                ImGui.TextColored(ImGuiColors.DalamudRed, "Status: No opcode :(");
+            ImGui.TextColored(
+                _fishCount == 0 ? ImGuiColors.DalamudYellow : ImGuiColors.HealerGreen,
+                $"Status: {(_fishCount == 0 ? "Unknown (not triggered yet)" : $"OK ({_fishCount} fish hooked)")}");
         }
         ImGui.End();
     }
