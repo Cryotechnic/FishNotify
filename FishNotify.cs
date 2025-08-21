@@ -8,16 +8,26 @@ using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using Dalamud.Game.Command;
+using Dalamud.IoC;
 
 namespace FishNotify;
 
 public sealed class FishNotifyPlugin : IDalamudPlugin
 {
-    private readonly IDalamudPluginInterface PluginInterface;
-    private readonly IGameInteropProvider GameInteropProvider;
-    private readonly IChatGui Chat;
-    private readonly IPluginLog PluginLog;
-    private readonly ICommandManager CommandManager;
+    [PluginService]
+    private IDalamudPluginInterface PluginInterface { get; set; } = null!;
+
+    [PluginService]
+    private IGameInteropProvider GameInteropProvider { get; set; } = null!;
+
+    [PluginService]
+    private IChatGui Chat { get; set; } = null!;
+
+    [PluginService]
+    private IPluginLog PluginLog { get; set; } = null!;
+
+    [PluginService]
+    private ICommandManager CommandManager { get; set; } = null!;
 
     private readonly Configuration _configuration;
     private bool _settingsVisible;
